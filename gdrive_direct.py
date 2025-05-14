@@ -446,14 +446,19 @@ def display_folder_stats(stats):
     print_color("\n==============================", 'blue')
 
 def list_destination_folders(service):
-    """List folders in My Drive for destination selection."""
-    print_color("\nFinding folders in your Drive for destination:", 'blue')
+    """List folders in My Drive and shared with me for destination selection."""
+    print_color("\nFinding folders for destination:", 'blue')
+    
+    all_folders = []
     
     try:
         # First, get the root folder ID 'My Drive'
         root_folder = service.files().get(fileId='root', fields='id, name').execute()
+        root_folder['source'] = 'My Drive'
+        all_folders.append(root_folder)
         
         # Get folders in the user's My Drive
+        print_color("Listing folders in your My Drive...", 'blue')
         response = service.files().list(
             q="'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
             spaces='drive',
@@ -461,21 +466,58 @@ def list_destination_folders(service):
             pageSize=100
         ).execute()
         
-        items = [root_folder] + response.get('files', [])
+        my_drive_folders = response.get('files', [])
+        for folder in my_drive_folders:
+            folder['source'] = 'My Drive'
+            all_folders.append(folder)
+            
+        print_color(f"Found {len(my_drive_folders)} folders in your My Drive", 'green')
         
-        if not items:
-            print_color("No folders found in your My Drive.", 'yellow')
+        # List shared with me folders
+        print_color("Listing folders shared with you...", 'blue')
+        shared_response = service.files().list(
+            q="sharedWithMe=true and mimeType='application/vnd.google-apps.folder'",
+            spaces='drive',
+            fields='files(id, name, sharingUser)',
+            pageSize=100
+        ).execute()
+        
+        shared_items = shared_response.get('files', [])
+        for item in shared_items:
+            # Get sharing user if available
+            shared_by = ""
+            if 'sharingUser' in item and 'displayName' in item['sharingUser']:
+                shared_by = item['sharingUser']['displayName']
+            
+            item['source'] = 'Shared with me'
+            item['sharedBy'] = shared_by
+            all_folders.append(item)
+            
+        print_color(f"Found {len(shared_items)} folders shared with you", 'green')
+        
+        # Show the combined list
+        if not all_folders:
+            print_color("No folders found in your Drive or shared with you.", 'yellow')
             return None
         
-        print_color(f"Found {len(items)} folders in your Drive:", 'green')
+        print_color(f"\nAll available destination folders:", 'green')
         
-        for i, item in enumerate(items, 1):
+        for i, item in enumerate(all_folders, 1):
             folder_name = item.get('name', 'Unknown')
             folder_id = item.get('id', '')
+            source = item.get('source', 'Unknown')
+            
+            # Add info about who shared the folder
+            source_info = ""
+            if source == 'Shared with me' and 'sharedBy' in item and item['sharedBy']:
+                source_info = f" [Shared by: {item['sharedBy']}]"
+            
+            # Add icon based on source
+            icon = "🗂️" if source == 'My Drive' else "👤"
             
             # Highlight the default destination
             highlight = " (Default)" if folder_id == DEFAULT_DESTINATION_ID else ""
-            print(f"{i}. 📁 {folder_name}{highlight} [ID: {folder_id}]")
+            print(f"{i}. {icon} {folder_name}{highlight} ({source}){source_info} [ID: {folder_id}]")
         
         while True:
             try:
@@ -483,19 +525,19 @@ def list_destination_folders(service):
                 
                 if not choice.strip():
                     # Use default destination
-                    for item in items:
+                    for item in all_folders:
                         if item.get('id') == DEFAULT_DESTINATION_ID:
                             print_color(f"Using default: {item.get('name')} [ID: {item.get('id')}]", 'green')
                             return item
                     
                     # If no default found, use the first folder
-                    print_color(f"Default folder not found, using: {items[0].get('name')}", 'yellow')
-                    return items[0]
+                    print_color(f"Default folder not found, using: {all_folders[0].get('name')}", 'yellow')
+                    return all_folders[0]
                 
                 index = int(choice) - 1
-                if 0 <= index < len(items):
-                    print_color(f"Selected: {items[index].get('name')}", 'green')
-                    return items[index]
+                if 0 <= index < len(all_folders):
+                    print_color(f"Selected: {all_folders[index].get('name')}", 'green')
+                    return all_folders[index]
                 else:
                     print_color("Invalid selection. Please try again.", 'red')
             except ValueError:
