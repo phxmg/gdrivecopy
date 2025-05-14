@@ -1,0 +1,32 @@
+# Claude settings
+**/.claude/settings.local.json
+
+# Google API credentials and tokens
+credentials.json
+credentials-orig.json
+token.pickle
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# MacOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
