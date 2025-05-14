@@ -582,10 +582,8 @@ def retry_with_exponential_backoff(func, max_retries=8, initial_delay=10, factor
         
         while True:
             try:
-                result = func(*args, **kwargs)
-                # Add a small pause after successful operations to avoid hitting limits
-                time.sleep(0.5)
-                return result
+                # No delay for successful operations - only delay when we hit rate limits
+                return func(*args, **kwargs)
             except HttpError as e:
                 # Check if this is a rate limit error
                 if e.resp.status == 403 and "userRateLimitExceeded" in str(e):
@@ -804,7 +802,7 @@ def copy_file(service, file_id, name, parent_id, file_size=0, dry_run=False, fil
         
         return {"status": "error", "reason": "copy_failed"}
 
-def copy_folder_structure(service, source_folder_id, dest_folder_id, folder_name, depth=0, dry_run=False, is_shared_drive=False, file_cache=None, operation_delay=3):
+def copy_folder_structure(service, source_folder_id, dest_folder_id, folder_name, depth=0, dry_run=False, is_shared_drive=False, file_cache=None, operation_delay=0):
     """Copy folder structure recursively with file existence checks."""
     # Counters for summary
     summary = {
@@ -1095,7 +1093,7 @@ def parse_args():
     parser.add_argument('--max-retries', type=int, default=8, help='Maximum number of retry attempts for rate limited operations (default: 8)')
     parser.add_argument('--initial-delay', type=float, default=10, help='Initial delay in seconds before first retry (default: 10)')
     parser.add_argument('--backoff-factor', type=float, default=2, help='Factor by which the delay increases with each retry (default: 2)')
-    parser.add_argument('--operation-delay', type=float, default=3, help='Delay in seconds between file operations (default: 3)')
+    parser.add_argument('--operation-delay', type=float, default=0, help='Optional delay in seconds between file operations (default: 0, no delay)')
     
     return parser.parse_args()
 

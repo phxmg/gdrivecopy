@@ -65,7 +65,7 @@ python gdrive_direct.py --source SOURCE_ID --dest DESTINATION_ID
 - `--max-retries N`: Maximum number of retry attempts for rate limited operations (default: 8)
 - `--initial-delay N`: Initial delay in seconds before first retry (default: 10)
 - `--backoff-factor N`: Factor by which the delay increases with each retry (default: 2)
-- `--operation-delay N`: Delay in seconds between file operations (default: 3)
+- `--operation-delay N`: Optional delay in seconds between file operations (default: 0, no delay)
 
 ## Rate Limiting and API Quotas
 
@@ -75,10 +75,10 @@ The Google Drive API has usage limits that can cause errors when copying large n
 2. **Operation delays**: The script adds a delay between file operations to avoid hitting limits
 3. **Quota checking**: Use the included `check_quota.py` script to verify your API quota status
 
-For severe rate limiting issues, try:
+For severe rate limiting issues, you can add an operation delay:
 
 ```bash
-python gdrive_direct.py --operation-delay 5 --initial-delay 20
+python gdrive_direct.py --operation-delay 3 --initial-delay 20
 ```
 
 ## Additional Scripts
