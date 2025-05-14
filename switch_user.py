@@ -16,7 +16,7 @@ def main():
     username = args.user.lower()
     
     # Check if the username is valid
-    valid_users = ["val", "turbo"]
+    valid_users = ["val", "turbo", "power"]
     if username not in valid_users:
         print(f"Error: '{username}' is not a valid user. Choose from: {', '.join(valid_users)}")
         return 1
