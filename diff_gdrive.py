@@ -381,8 +381,8 @@ def list_all_folders(service):
     
     return all_folders
 
-def compare_folders(stats1, stats2):
-    """Compare two folder statistics and generate a diff report."""
+def compare_folders(stats1, stats2, folder1_name, folder2_name):
+    """Compare two folder statistics and generate a diff report, accounting for nesting differences."""
     diff = {
         # Summary statistics
         'total_files_diff': stats2['total_files'] - stats1['total_files'],
@@ -404,11 +404,46 @@ def compare_folders(stats1, stats2):
         'largest_different_files': [] # Largest files that are different
     }
     
-    # Compare files
-    all_files = set(stats1['file_index'].keys()) | set(stats2['file_index'].keys())
+    # Check if folder2 has a direct subfolder with the same name as folder1
+    nested_structure = False
+    potential_nested_path = f"{folder2_name}/{folder1_name}"
     
-    for file_path in all_files:
-        if file_path in stats1['file_index'] and file_path not in stats2['file_index']:
+    # Collect all folders that start with the potential nested path
+    nested_folders = [path for path in stats2['folder_sizes'].keys() 
+                     if path.startswith(potential_nested_path)]
+    
+    if nested_folders:
+        nested_structure = True
+        print_color(f"Detected nested structure: '{folder1_name}' appears to be a subfolder of '{folder2_name}'", 'yellow')
+        print_color("Adjusting paths for comparison...", 'yellow')
+    
+    # Function to match paths between the two folder structures
+    def match_paths(path1, path2_index):
+        """Find matching file in folder2 accounting for possible nesting."""
+        # Direct match
+        if path1 in path2_index:
+            return path1
+        
+        # If we have a nested structure, try to match with the nested path
+        if nested_structure:
+            # Remove the folder1 name from the beginning of path1
+            # path1 is like "Gateway Footage/Day 1/file.mp4"
+            # Convert to relative path like "Day 1/file.mp4"
+            if path1.startswith(folder1_name + "/"):
+                relative_path = path1[len(folder1_name) + 1:]
+                # Now check if it exists with the nested structure
+                nested_path = f"{folder2_name}/{folder1_name}/{relative_path}"
+                if nested_path in path2_index:
+                    return nested_path
+            
+        return None
+    
+    # Compare files from folder1 to folder2
+    for file_path in stats1['file_index'].keys():
+        # Try to find matching file in folder2
+        matching_path = match_paths(file_path, stats2['file_index'])
+        
+        if not matching_path:
             # File only in first folder
             file_details = stats1['file_index'][file_path]
             diff['files_only_in_first'].append({
@@ -416,20 +451,10 @@ def compare_folders(stats1, stats2):
                 'size': file_details['size'],
                 'name': file_details['name']
             })
-            
-        elif file_path in stats2['file_index'] and file_path not in stats1['file_index']:
-            # File only in second folder
-            file_details = stats2['file_index'][file_path]
-            diff['files_only_in_second'].append({
-                'path': file_path,
-                'size': file_details['size'],
-                'name': file_details['name']
-            })
-            
         else:
-            # File in both folders, check if they're different
+            # File exists in both folders
             file1 = stats1['file_index'][file_path]
-            file2 = stats2['file_index'][file_path]
+            file2 = stats2['file_index'][matching_path]
             
             if file1['size'] != file2['size'] or (file1['md5'] and file2['md5'] and file1['md5'] != file2['md5']):
                 # Files are different
@@ -447,6 +472,34 @@ def compare_folders(stats1, stats2):
                     'size': file1['size'],
                     'name': file1['name']
                 })
+    
+    # Find files only in folder2
+    # We need a reverse mapping function to check if files in folder2 have a match in folder1
+    def reverse_match_paths(path2, path1_index):
+        """Find if a file in folder2 has a match in folder1."""
+        # Direct match
+        if path2 in path1_index:
+            return True
+        
+        # If we have a nested structure, check for match in the relative path
+        if nested_structure and path2.startswith(potential_nested_path + "/"):
+            # Extract the relative path after the nested structure
+            relative_path = path2[len(potential_nested_path) + 1:]
+            folder1_path = f"{folder1_name}/{relative_path}"
+            return folder1_path in path1_index
+        
+        return False
+    
+    # Find files only in folder2
+    for file_path in stats2['file_index'].keys():
+        if not reverse_match_paths(file_path, stats1['file_index']):
+            # File only in second folder
+            file_details = stats2['file_index'][file_path]
+            diff['files_only_in_second'].append({
+                'path': file_path,
+                'size': file_details['size'],
+                'name': file_details['name']
+            })
     
     # Compare file extensions
     all_extensions = set(stats1['files_by_extension'].keys()) | set(stats2['files_by_extension'].keys())
@@ -691,7 +744,7 @@ def main():
         
         # Compare the folders
         print_color("\nComparing folders...", 'blue')
-        diff = compare_folders(stats1, stats2)
+        diff = compare_folders(stats1, stats2, folder1_name, folder2_name)
         
         # Display the comparison results
         display_diff(folder1_name, folder2_name, diff)
